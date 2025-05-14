@@ -1,1 +1,4 @@
-# smp-pzpi-23-5-hushchyn-mykhailo
+# smp-pzpi-23-5-hushchyn-mykhailo  $
+ПЗПІ-23-5  $
+Гущин Михайло  $
+---  $
