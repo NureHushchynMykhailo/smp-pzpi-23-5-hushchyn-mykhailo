@@ -1,0 +1,224 @@
+#!/bin/bash
+
+VERSION="1.0"
+QUIET=false
+group=""
+file=""
+
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --help)
+            echo "Usage: $0 [options] [group] [file]"
+            echo "Options:"
+            echo "  --help        Show this help message and exit"
+            echo "  --version     Show version information and exit"
+            echo "  -q, --quiet   Suppress standard output"
+            exit 0
+            ;;
+        --version)
+            echo "$0 version $VERSION"
+            exit 0
+            ;;
+        -q|--quiet)
+            QUIET=true
+            ;;
+        *)
+           if [[ -z "$file" && "$1" != -* && "$1" == *.csv ]]; then
+                file="$1"  # Записуємо перший аргумент як файл
+            elif [[ -z "$group" && "$1" != -* ]]; then
+                group="$1"
+            else
+                echo "Unknown option: $1" >&2
+                exit 1
+            fi
+            ;;
+    esac
+    shift
+done
+
+if [[ -z "$file" ]]; then
+    select file in $(ls TimeTable_??_??_20??.csv 2>/dev/null | sort); do
+        [[ -n "$file" ]] && break
+        echo "Помилка: Невірний вибір. Спробуйте ще раз."
+    done
+fi
+
+if [[ ! -r "$file" ]]; then
+    echo "Помилка: файл '$file' не знайдено або він недоступний." >&2
+    exit 1
+fi
+
+date_suffix=$(basename "$file" | grep -o "[0-9]\{2\}_[0-9]\{2\}_20[0-9]\{2\}")
+utf8_file="temp_utf8.csv"
+
+sed 's/\r/\n/g' "$file" | iconv -f cp1251 -t UTF-8 > "$utf8_file" || {
+    echo "Помилка: не вдалося конвертувати файл '$file' у UTF-8." >&2
+    exit 1
+}
+
+file="$utf8_file"
+
+
+if [[ -z "$group" ]]; then
+    mapfile -t groups < <(awk -F',' 'NR > 1 { split($1, a, " "); gsub(/"/, "", a[1]); print a[1] }' "$file" | sort -V | uniq)
+    if [[ ${#groups[@]} -eq 1 ]]; then
+        group="${groups[0]}"
+        echo "Єдина доступна група: $group"
+    else
+        echo "Виберіть академічну групу:"
+        select group in "${groups[@]}"; do
+            if [[ -n "$group" ]]; then
+                break
+            fi
+            echo "Помилка: Невірний вибір. Спробуйте ще раз."
+        done
+    fi
+fi
+
+$QUIET ||echo "Ви вибрали: $group"
+
+output_file="Google_TimeTable_${date_suffix}.csv"
+
+awk -F',' -v grp="$group " 'BEGIN {
+    OFS = ",";
+    print "Subject,Start Date,Start Time,End Date,End Time,Description"
+}
+NR > 1 && $1 ~ grp {
+    gsub(/;/, ",", $0);
+    gsub(/"/, "", $1); gsub(/"/, "", $2); gsub(/"/, "", $3); gsub(/"/, "", $5); gsub(/"/, "", $12);
+
+    for (i = 2; i <= NF; i++) {
+        gsub(/"/, "", $i);
+        if ($i ~ /^[0-9]{2}\.[0-9]{2}\.[0-9]{4}$/) {
+            start_date = "\"" $i "\"";
+            gsub(/"/, "", $(i+1));
+            start_time = "\"" $(i+1) "\"";
+            gsub(/"/, "", $(i+2));
+            end_date = "\"" $i "\"";
+            gsub(/"/, "", $(i+3));
+            end_time = "\"" $(i+3) "\"";
+            gsub(/"/, "", $(i+10));
+            description = "\"" $(i+10) "\"";
+            break;
+        } else {
+            subject = subject OFS $i;
+            $i = "";
+        }
+    }
+
+    subject = "\"" $1 "\"";
+
+    formatted_subject = subject OFS start_date OFS start_time OFS end_date OFS end_time OFS description;
+
+    print formatted_subject
+}' "$file" > "$output_file"
+
+awk -F',' 'BEGIN {OFS=","}
+NR > 0 {
+    
+    	split($2, date, ".");
+  	$2 = date[2] "/" date[1] "/" date[3];
+ 	gsub(/"/, "", $2);  
+	$2 = "\"" $2 "\"";
+
+	split($4, date, ".");
+  	$4 = date[2] "/" date[1] "/" date[3];
+ 	gsub(/"/, "", $4);  
+	$4 = "\"" $4 "\"";
+	
+
+    print $1, $2, $3, $4, $5, $6;
+
+}' "$output_file" > "$output_file.tmp" && mv "$output_file.tmp" "$output_file"
+
+
+sort -t',' -k2,2 -k3,3 "$output_file" > "$output_file.tmp" && mv "$output_file.tmp" "$output_file"
+
+declare -A lecture_number
+declare -A lab_number
+
+awk -F',' -v grp="$group " 'BEGIN {
+   
+    print "Subject,Start Date,Start Time,End Date,End Time,Description"
+}
+NR > 1 {
+    subject_name = $6;
+
+      if (subject_name ~ /Лб/) {
+               if (!(subject_name in lab_number)) lab_number[subject_name] = 1;
+
+              if (lab_number[subject_name] % 2 == 1) {
+                      gsub(/"/, "", $1); 
+            sub(/ПЗПІ-[0-9]+-[0-9]+ - /, "", $1);  
+            $1 = "\"" $1 " №" int((lab_number[subject_name] + 1) / 2) "\"";
+        } else {
+                        gsub(/"/, "", $1);  
+            sub(/ПЗПІ-[0-9]+-[0-9]+ - /, "", $1); 
+            $1 = "\"" $1 " №" int(lab_number[subject_name] / 2) "\"";
+        }
+
+       
+        lab_number[subject_name]++;
+
+    } else {
+       
+        if (!(subject_name in lecture_number)) lecture_number[subject_name] = 0;
+        lecture_number[subject_name]++;
+        
+        gsub(/"/, "", $1);  
+        sub(/ПЗПІ-[0-9]+-[0-9]+ - /, "", $1);  
+        $1 = "\"" $1 " №" lecture_number[subject_name] "\"";
+    }
+
+	gsub(/"/, "", $3); 
+gsub(/"/, "", $5); 
+
+ split($3, time, ":");
+    hour = time[1];
+    minute = time[2];
+    
+   
+    if (hour == 0) {
+        hour = 12;
+        suffix = "AM";
+    } else if (hour == 12) {
+        suffix = "PM";
+    } else if (hour > 12) {
+        hour = hour - 12;
+        suffix = "PM";
+    } else {
+        suffix = "AM";
+    }
+
+    $3 = hour ":" minute " " suffix;
+
+    
+    split($5, time, ":");
+    hour = time[1];
+    minute = time[2];
+    
+        if (hour == 0) {
+        hour = 12;
+        suffix = "AM";
+    } else if (hour == 12) {
+        suffix = "PM";
+    } else if (hour > 12) {
+        hour = hour - 12;
+        suffix = "PM";
+    } else {
+        suffix = "AM";
+    }
+
+    $5 = hour ":" minute " " suffix;
+$3 = "\"" $3 "\"";
+$5 = "\"" $5 "\"";
+
+        print $1, $2, $3, $4, $5, $6;
+}' OFS=',' "$output_file" > "$output_file.tmp" && mv "$output_file.tmp" "$output_file"
+
+
+$QUIET || cat "$output_file"
+
+$QUIET || echo "Файл '$output_file' готовий для імпорту в Google Календар."
+exit 0
