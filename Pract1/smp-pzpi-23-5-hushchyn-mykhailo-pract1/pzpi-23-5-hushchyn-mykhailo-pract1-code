@@ -1,0 +1,83 @@
+#!/bin/bash
+last_symbol='#'
+draw_triangle() {
+    local height=$1
+    local start_width=$2
+    local max_width=$3
+    local current_symbol=$4
+    for ((i = 0; i < height; i++)); do
+        local line_width=$((start_width + i * 2))
+        local spaces=$(((max_width - line_width) / 2))
+        printf "%*s" "$spaces" ""
+        printf "%${line_width}s\n" "" | tr " " "$current_symbol"
+              if [[ "$current_symbol" == "#" ]]; then
+            current_symbol="*"
+        else
+            current_symbol="#"
+        fi
+    done
+
+    last_symbol="$current_symbol"
+}
+if [[ $# -ne 2 ]]; then
+    echo "Помилка: потрібно вказати два параметри — висоту ялинки та ширину снігу." >&2
+    exit 1
+fi
+total_height=$1
+snow_width=$2
+if ! [[ $total_height =~ ^[0-9]+$ && $snow_width =~ ^[0-9]+$ ]] || ((total_height <= 0 || snow_width <= 0)); then
+    echo "Помилка: параметри повинні бути додатніми цілими числами." >&2
+    exit 1
+fi
+
+if ((snow_width % 2 == 0)); then
+    snow_width=$((snow_width - 1))
+fi
+if ((snow_width < 7 || total_height < 7)); then
+    echo "Помилка: ширина снігу та висота ялинки мають бути не менше 7" >&2
+    exit 1
+fi
+branches_width=$((snow_width - 2))
+if ((branches_width < 3)); then
+    echo "Помилка: ширина снігу надто мала або не дозволяє створити симетричні гілки." >&2
+    exit 1
+fi
+max_layer_width() {
+    local height=$1
+    echo $((2 * (height / 2) - 1))
+}
+max_width=$(max_layer_width "$total_height")
+if ((snow_width != max_width)); then
+    echo "Помилка: максимальна ширина ярусу не співпадає з шириною снігу" >&2
+    exit 1
+fi
+triangle_height=$(( (branches_width - 1) / 2 ))
+static_lines=4
+available_lines=$((total_height - static_lines))
+layer_height=$((2 * triangle_height))
+num_layers=$((available_lines / layer_height))
+if ((num_layers < 1)); then
+    echo "Помилка: недостатньо висоти для побудови хоча б одного ярусу." >&2
+    exit 1
+fi
+spaces=$(((snow_width - 1) / 2))
+printf "%*s*\n" "$spaces" ""
+layer=0
+current_symbol="#"
+until ((layer >= num_layers)); do
+    draw_triangle "$triangle_height" 3 "$snow_width" "$current_symbol"
+    current_symbol="$last_symbol"
+    draw_triangle "$triangle_height" 3 "$snow_width" "$current_symbol"
+    current_symbol="$last_symbol"
+    ((layer++))
+done
+for _ in {1..2}; do
+    spaces=$(((snow_width - 3) / 2))
+    printf "%*s###\n" "$spaces" ""
+done
+count=0
+while ((count < snow_width)); do
+    printf "*"
+    ((count++))
+done
+printf "\n"
