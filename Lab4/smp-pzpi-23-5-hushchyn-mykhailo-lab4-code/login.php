@@ -3,7 +3,6 @@ if (session_status() === PHP_SESSION_NONE)
 {
     session_start();
 }
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') 
 {
     if (isset($_POST['username'], $_POST['password'])) 
@@ -15,11 +14,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST')
             $_SESSION['login_time'] = date("Y-m-d H:i:s");
            header("Location: main.php?");
             exit;
-        } else 
+        } 
+        else 
         {
             $error = 'Неправильний логін або пароль';
         }
-    } else 
+    } 
+    else 
     {
         $error = 'Заповніть усі поля';
     }
@@ -30,13 +31,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST')
 <head>
     <meta charset="UTF-8">
     <title>Login</title>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f4f4f4; }
-        form { max-width: 400px; margin: 50px auto; background: white; padding: 20px; border-radius: 10px; }
-        input, button { padding: 10px; width: 100%; margin: 10px 0; }
-        button { background: #0077cc; color: white; border: none; }
-        p.error { color: red; }
-    </style>
 </head>
 <body>
     <form method="POST">

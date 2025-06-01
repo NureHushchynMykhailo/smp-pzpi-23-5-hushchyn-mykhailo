@@ -12,9 +12,7 @@ require_once 'db.php';
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
 <?php require_once("header.php"); ?>
-
 <main>
 <?php
 $page = $_GET['page'] ?? 'home';
