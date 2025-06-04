@@ -71,7 +71,7 @@ until ((layer >= num_layers)); do
     current_symbol="$last_symbol"
     ((layer++))
 done
-for _ in {1..2}; do
+for _ in 1 2; do
     spaces=$(((snow_width - 3) / 2))
     printf "%*s###\n" "$spaces" ""
 done
